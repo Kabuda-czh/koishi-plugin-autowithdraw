@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-autowithdraw",
   "description": "bot自动回复对应指令, 且指令撤回可以自动撤回回复消息",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
