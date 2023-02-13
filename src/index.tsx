@@ -2,8 +2,8 @@
  * @Author: Kabuda-czh
  * @Date: 2023-02-12 04:42:59
  * @LastEditors: Kabuda-czh
- * @LastEditTime: 2023-02-13 20:44:34
- * @FilePath: \KBot-App\plugins\autowithdraw\src\index.tsx
+ * @LastEditTime: 2023-02-13 21:27:39
+ * @FilePath: \koishi-plugin-autowithdraw\src\index.tsx
  * @Description: 
  * 
  * Copyright (c) 2023 by Kabuda-czh, All Rights Reserved.
@@ -46,13 +46,16 @@ export async function apply(ctx: Context, config: Config) {
         for (const [key, value] of Object.entries(replaceMap)) {
           content = content.replace(new RegExp(key, "g"), value);
         }
-
-        message = <message>
-          <quote id={messageId} />
-          <at id={userId} />
-          <p>{content}</p>
-          <at id={userId} />
-        </message>
+        if (config.quoteEnable) {
+          message = <message>
+            <quote id={messageId} />
+            <at id={userId} />
+            <p>{content}</p>
+            <at id={userId} />
+          </message>
+        } else {
+          message = content;
+        }
       } else {
         message = content;
       }
