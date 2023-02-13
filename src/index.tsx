@@ -2,37 +2,22 @@
  * @Author: Kabuda-czh
  * @Date: 2023-02-12 04:42:59
  * @LastEditors: Kabuda-czh
- * @LastEditTime: 2023-02-12 20:34:54
- * @FilePath: \koishi-plugin-autowithdraw\src\index.tsx
+ * @LastEditTime: 2023-02-13 20:44:34
+ * @FilePath: \KBot-App\plugins\autowithdraw\src\index.tsx
  * @Description: 
  * 
  * Copyright (c) 2023 by Kabuda-czh, All Rights Reserved.
  */
-import { Context, h, Schema } from "koishi";
+import { Context, Schema, Session, sleep } from "koishi";
 
 export const name = "autowithdraw";
-
-declare module "koishi" {
-  interface Tables {
-    msgTable: MsgTable;
-  }
-}
-
-interface MsgTable {
-  id: number;
-  reciveMsgId?: string;
-  sendMsgId?: string;
-  sendUserId?: string;
-  sendChannelId?: string;
-  messageInfo?: string
-}
 
 export interface Config {
   quoteEnable?: boolean;
 }
 
 export const Config: Schema<Config> = Schema.object({
-  quoteEnable: Schema.boolean().default(false).description("是否启用以引用方式回复指令"),
+  quoteEnable: Schema.boolean().default(false).description("是否启用以引用方式回复指令, 注意: 目前图片暂时不支持回复"),
 });
 
 export const using = ["database"];
@@ -46,75 +31,46 @@ const replaceMap = {
 }
 
 export async function apply(ctx: Context, config: Config) {
-  let messageObj;
+  const messageIdArrayMap: {
+    [x: string]: string[]
+  } = {};
 
-  ctx.model.extend(
-    "msgTable",
-    {
-      id: { type: "integer" },
-      reciveMsgId: { type: "string" },
-      sendMsgId: { type: "string" },
-      sendUserId: { type: "string" },
-      sendChannelId: { type: "string" },
-      messageInfo: { type: "string" },
-    },
-    {
-      autoInc: true,
-    }
-  );
-
-  ctx.on("message", (session) => {
-    messageObj = {
-      id: +session.id,
-      reciveMsgId: session.messageId,
-      sendUserId: session.userId,
-      sendChannelId: session.channelId,
-      messageInfo: session.content,
-    };
-  });
-
-  if (config.quoteEnable) {
-    ctx.on("before-send", (session) => {
-      if (+session.id - messageObj.id === 1) {
-        let sendMsg = session.content;
+  ctx.on("command/before-execute", ({ session }) => {
+    session.send = ((send) => async (...args) => {
+      const { messageId, userId } = session;
+      let content = args[0];
+      if (content === '') return [];
+      let message;
+      // TODO 图片处理问题
+      if (typeof content === "string") {
         for (const [key, value] of Object.entries(replaceMap)) {
-          sendMsg = sendMsg.replace(new RegExp(key, "g"), value);
+          content = content.replace(new RegExp(key, "g"), value);
         }
 
-        session.send(
-          <message>
-            <quote id={messageObj.reciveMsgId} />
-            <p>{sendMsg}</p>
-            <at id={messageObj.sendUserId} />
-          </message>
-        )
-        return true;
+        message = <message>
+          <quote id={messageId} />
+          <at id={userId} />
+          <p>{content}</p>
+          <at id={userId} />
+        </message>
+      } else {
+        message = content;
       }
-    })
-  }
 
-  ctx.on("send", async (session) => {
-    if ([2, 3].includes(+session.id - messageObj.id)) {
-      messageObj.sendMsgId = session.messageId;
-      delete messageObj.id;
-      await ctx.database.create("msgTable", {
-        ...messageObj,
-      });
-      messageObj = {};
-    }
-  });
+      const ids = await send(message);
+      messageIdArrayMap[messageId] = (messageIdArrayMap[messageId] || []).concat(ids)
+
+      return ids
+    })(session.send.bind(session));
+  })
 
   ctx.on("message-deleted", async (session) => {
-    const msg = await ctx.database.get("msgTable", {
-      reciveMsgId: session.messageId,
-      sendUserId: session.userId,
-    });
-    if (msg.length === 1) {
-      session.bot.deleteMessage(msg[0].sendChannelId, msg[0].sendMsgId);
-      await ctx.database.remove("msgTable", {
-        reciveMsgId: session.messageId,
-        sendUserId: session.userId,
-      });
+    if (messageIdArrayMap[session.messageId]) {
+      messageIdArrayMap[session.messageId].forEach(async (id) => {
+        await session.bot.deleteMessage(session.channelId, id);
+        await sleep(1000);
+      })
+      messageIdArrayMap[session.messageId] = [];
     }
   });
 }
