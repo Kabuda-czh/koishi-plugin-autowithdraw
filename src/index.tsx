@@ -4,11 +4,11 @@
  * @LastEditors: Kabuda-czh
  * @LastEditTime: 2023-02-13 21:27:39
  * @FilePath: \koishi-plugin-autowithdraw\src\index.tsx
- * @Description: 
- * 
+ * @Description:
+ *
  * Copyright (c) 2023 by Kabuda-czh, All Rights Reserved.
  */
-import { Context, Schema, Session, sleep } from "koishi";
+import { Context, Schema, Session, h, sleep } from "koishi";
 
 export const name = "autowithdraw";
 
@@ -50,7 +50,7 @@ export async function apply(ctx: Context, config: Config) {
           message = <message>
             <quote id={messageId} />
             <at id={userId} />
-            <p>{content}</p>
+            {h.parse(content)}
             <at id={userId} />
           </message>
         } else {
